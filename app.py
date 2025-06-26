@@ -1,33 +1,39 @@
-from flask import Flask, render_template, request
+import streamlit as st
 import numpy as np
 import pickle
 from tensorflow.keras.models import load_model
 
- 
+# Set Streamlit page config (MUST be first Streamlit call)
+st.set_page_config(page_title="Crop Recommendation", layout="centered")
+
+# Load model and preprocessing tools
 model = load_model('crop_recommendation_model.h5')
 scaler = pickle.load(open('scaler.pkl', 'rb'))
 encoder = pickle.load(open('encoder.pkl', 'rb'))
 
-app = Flask(__name__)
+# App title
+st.title("🌱 Crop Recommendation System")
+st.write("Enter the following parameters to get a recommended crop:")
 
-@app.route('/')
-def home():
-    return render_template('index.html')
+# Input form
+with st.form("input_form"):
+    n = st.number_input("Nitrogen (N)", min_value=0.0)
+    p = st.number_input("Phosphorus (P)", min_value=0.0)
+    k = st.number_input("Potassium (K)", min_value=0.0)
+    temperature = st.number_input("Temperature (°C)", min_value=0.0)
+    humidity = st.number_input("Humidity (%)", min_value=0.0)
+    ph = st.number_input("pH", min_value=0.0)
+    rainfall = st.number_input("Rainfall (mm)", min_value=0.0)
+    submitted = st.form_submit_button("Predict")
 
-@app.route('/predict', methods=['POST'])
-def predict():
+# Prediction logic
+if submitted:
     try:
-        features = [float(x) for x in request.form.values()]
-        input_scaled = scaler.transform([features])
-        prediction = model.predict(input_scaled)
+        input_data = np.array([[n, p, k, temperature, humidity, ph, rainfall]])
+        scaled_input = scaler.transform(input_data)
+        prediction = model.predict(scaled_input)
         crop_index = np.argmax(prediction)
         crop_label = encoder.categories_[0][crop_index]
-        return render_template('index.html', prediction_text=f"Recommended Crop: {crop_label}")
+        st.success(f"✅ Recommended Crop: **{crop_label}**")
     except Exception as e:
-        return render_template('index.html', prediction_text=f"Error: {str(e)}")
-
-if __name__ == "__main__":
-    import os
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
-
+        st.error(f"Error during prediction: {e}")
